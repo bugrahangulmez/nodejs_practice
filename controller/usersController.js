@@ -1,20 +1,9 @@
-const router = require("express").Router();
 const bcrypt = require("bcrypt");
-const users = require("../data/users.json");
 const jwt = require("jsonwebtoken");
-const fsPromises = require("fs").promises;
-const path = require("path");
-const usersDB = {
-  users: require("../data/users.json"),
-  setUsers: function (data) {
-    this.users = data;
-  },
-};
+const User = require("../data/User");
 
 const handleLogin = async (req, res) => {
-  const foundUser = users.find(
-    (person) => person.username === req.body.username
-  );
+  const foundUser = await User.findOne({ username: req.body.username });
   if (foundUser) {
     const matched = await bcrypt.compare(req.body.pwd, foundUser.pwd);
     if (matched) {
@@ -36,17 +25,8 @@ const handleLogin = async (req, res) => {
         process.env.REFRESH_TOKEN_SECRET,
         { expiresIn: "1d" }
       );
-      const newEmployees = usersDB.users.map((person) => {
-        if (person.username === foundUser.username) {
-          return { ...foundUser, refreshToken };
-        } else return person;
-      });
-      usersDB.setUsers(newEmployees);
-      await fsPromises.writeFile(
-        path.join(__dirname, "..", "data", "users.json"),
-        JSON.stringify(usersDB.users),
-        "utf8"
-      );
+      foundUser.refreshToken = refreshToken;
+      await foundUser.save();
       res.cookie("jwt", refreshToken, {
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
@@ -60,18 +40,27 @@ const handleCreateUser = async (req, res) => {
   const hashedPwd = await bcrypt.hash(req.body.pwd, 10);
   const newUser = {
     username: req.body.username,
-    roles: {
-      User: 300,
-    },
     pwd: hashedPwd,
   };
-  usersDB.setUsers([...usersDB.users, newUser]);
-  await fsPromises.writeFile(
-    path.join(__dirname, "..", "data", "users.json"),
-    JSON.stringify(usersDB.users),
-    "utf8"
-  );
-  res.json(usersDB.users);
+  const result = new User(newUser);
+  await result.save();
+  res.sendStatus(200);
 };
 
-module.exports = { handleLogin, handleCreateUser };
+const handleLogout = async (req, res) => {
+  const cookies = req.cookies;
+  console.log(cookies);
+  if (!cookies?.jwt) return res.sendStatus(404);
+  const refreshToken = cookies.jwt;
+  const foundUser = await User.findOne({ refreshToken });
+  if (!foundUser) {
+    res.clearCookie("jwt", { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+    return res.json({ res: "Cookies is cleared." });
+  }
+  foundUser.refreshToken = "";
+  await foundUser.save();
+  res.clearCookie("jwt", { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+  res.status(200).json({ res: "Cookies is cleared." });
+};
+
+module.exports = { handleLogin, handleCreateUser, handleLogout };

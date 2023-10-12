@@ -1,84 +1,32 @@
-const router = require("express").Router();
-const fsPromises = require("fs").promises;
-const path = require("path");
-const employeesDB = {
-  employees: require("../data/employees.json"),
-  setEmployees: function (data) {
-    this.employees = data;
-  },
-};
+const Employee = require("../data/Employee");
 
-const getEmployee = (req, res) => {
-  res.json(employeesDB.employees);
+const getEmployee = async (req, res) => {
+  const employees = await Employee.find();
+  res.json(employees);
 };
 
 const createEmployee = async (req, res) => {
-  const lastEmployee = employeesDB.employees[employeesDB.employees.length - 1];
-  class Employee {
-    constructor(id, firstname, lastname, age) {
-      (this.id = id),
-        (this.firstname = firstname),
-        (this.lastname = lastname),
-        (this.age = age);
-    }
-  }
-  let newEmployee;
-  if (lastEmployee) {
-    newEmployee = new Employee(
-      lastEmployee.id + 1,
-      req.body.firstname,
-      req.body.lastname,
-      req.body.age
-    );
-  } else {
-    newEmployee = new Employee(
-      1,
-      req.body.firstname,
-      req.body.lastname,
-      req.body.age
-    );
-  }
-  console.log(employeesDB.employees);
-  employeesDB.setEmployees([...employeesDB.employees, newEmployee]);
-  await fsPromises.writeFile(
-    path.join(__dirname, "..", "data", "employees.json"),
-    JSON.stringify(employeesDB.employees),
-    "utf8"
-  );
-  res.json(employeesDB.employees);
+  const result = await Employee.create({
+    firstname: req.body.firstname,
+    lastname: req.body.lastname,
+    age: req.body.age,
+  });
+  res.status(200).json(result);
 };
 
 const deleteEmployee = async (req, res) => {
-  const newEmployees = employeesDB.employees.filter(
-    (person) => person.id !== req.body.id
-  );
-  employeesDB.setEmployees(newEmployees);
-  await fsPromises.writeFile(
-    path.join(__dirname, "..", "data", "employees.json"),
-    JSON.stringify(employeesDB.employees),
-    "utf8"
-  );
-  res.json(employeesDB.employees);
+  const employee = await Employee.findOne({ _id: req.body.id }).exec();
+  const result = employee.deleteOne();
+  res.json(result);
 };
 
 const editEmployee = async (req, res) => {
-  const newEmployees = employeesDB.employees.map((person) => {
-    if (person.id === req.body.id) {
-      return {
-        id: person.id,
-        firstname: req.body.firstname,
-        lastname: req.body.lastname,
-        age: req.body.age,
-      };
-    } else return person;
-  });
-  employeesDB.setEmployees(newEmployees);
-  await fsPromises.writeFile(
-    path.join(__dirname, "..", "data", "employees.json"),
-    JSON.stringify(employeesDB.employees),
-    "utf8"
-  );
-  res.json(employeesDB.employees);
+  const employee = await Employee.findOne({ _id: req.body.id });
+  if (req?.body?.firstname) employee.firstname = req.body.firstname;
+  if (req?.body?.lastname) employee.lastname = req.body.lastname;
+  if (req?.body?.age) employee.age = req.body.age;
+  const result = await employee.save();
+  res.status(200).json(result);
 };
 
 module.exports = {
