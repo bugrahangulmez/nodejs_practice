@@ -4,12 +4,13 @@ require("dotenv").config();
 const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
 const connectDB = require("./config/dbConn");
+const cors = require("cors");
 
 const PORT = process.env.PORT || 3501;
 connectDB();
 app.use(express.json());
 app.use(cookieParser());
-
+app.use(cors());
 app.use(require("./routes/root"));
 
 app.use("/register", require("./routes/register"));
